@@ -1,0 +1,119 @@
+#!/usr/bin/env node
+const { program } = require('commander');
+const figlet = require('figlet');
+const Printer = require('@darkobits/lolcatjs');
+const shell = require('shelljs');
+const {formatJSON,formatQueryObj} = require('../lib/json_format')
+const chalk = require('chalk');
+const inquirer = require('inquirer');
+const ora = require('ora');
+const { join } = require('path')
+const download = require('download-git-repo');
+const {
+  copyTemplate,
+  WriteAPI,
+  generatorFunction,
+  generatorInterface,
+  generatorUrl,
+  generatorAxiosFunction
+} = require('../lib/utils/file')
+const versionStr = figlet.textSync('API-TO-TSCode');
+
+
+const spinner = ora(
+  `🍉 正在生成，请稍等 \n`,
+);
+
+
+const generatorUniapp = async (path, output) => {
+
+  try {
+
+    const templatePath = join(__dirname, `../lib/template/uniapp`);
+    const toPath = join(process.cwd(), output || `uniAPI`);
+
+    // copy template
+    copyTemplate(templatePath, toPath)
+
+    // 写入调用方法
+    WriteAPI(await generatorFunction(require(path)), join(toPath, 'httpApi.js'))
+
+    // 写入baseURl
+    WriteAPI(await generatorUrl(require(path)), join(toPath, `baseUrl.js`))
+
+
+    spinner.text = `✔️ 生成成功，生成目录:${toPath}`
+    spinner.succeed()
+  } catch (error) {
+    console.log(error);
+    spinner.text = '❌ 文件解析失败，请传入正确的swaggerAPI文件'
+    spinner.fail()
+  }
+}
+
+
+const generatorAxios = async (path, output) => {
+
+  try {
+
+    const templatePath = join(__dirname, `../lib/template/axios`);
+    const toPath = join(process.cwd(),  output || `axios`);
+
+    // copy template
+    copyTemplate(templatePath, toPath)
+
+    // 写入调用方法
+    WriteAPI(await generatorAxiosFunction(require(path)), join(toPath, 'httpApi.ts'))
+
+    // 写入baseURl
+    WriteAPI(await generatorUrl(require(path)), join(toPath, `url.ts`))
+
+    // 生成interface
+    WriteAPI(await generatorInterface(formatQueryObj(formatJSON(require(path)))),join(toPath,'http.interface.ts'))
+
+    spinner.text = `✔️ 生成成功，生成目录:${toPath}`
+    spinner.succeed()
+  } catch (error) {
+    console.log(error);
+    spinner.text = '❌ 文件解析失败，请传入正确的swaggerAPI文件'
+    spinner.fail()
+  }
+}
+
+
+
+program
+  .command('generator <type> <json>')
+  .alias('g <type> <json>')
+  .usage('-o <output>')
+  .option('-o, --output <output>')
+  .description('generator|g <SwaggerAPI> -O <output>')
+  .action(async (type, cmd, { output }) => {
+    const templatePath = join(process.cwd(), `${cmd}`);
+    // const toPath = join(__dirname, `../apis`);
+    console.log(cmd, type);
+    spinner.start()
+
+    if (cmd.endsWith('.json')) {
+      switch (type) {
+        case 'axios':
+          generatorAxios(templatePath, output)
+          break;
+        case 'uniapp':
+          generatorUniapp(templatePath, output)
+          break;
+        default:
+          spinner.text = `😞 目前仅支持axios,uniapp ${type}无效`
+          spinner.warn()
+          break;
+      }
+
+      return
+    };
+
+    spinner.text = '❌ 文件解析失败，请传入正确json文件'
+    spinner.fail()
+
+
+  });
+program.parse(process.argv);
